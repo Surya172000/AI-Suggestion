@@ -14,7 +14,6 @@ app = FastAPI()
 
 active_connections: Dict[str, List[WebSocket]] = {}
 
-# Store the latest code for each document
 code_snippets: Dict[str, str] = {}
 
 HEADERS = {
@@ -103,10 +102,10 @@ async def execute_code(request: CodeExecutionRequest):
         old_stdout = sys.stdout
         sys.stdout = new_stdout = io.StringIO()
 
-        exec(request.code, {}, {})  # ✅ Fix: Properly executing code
+        exec(request.code, {}, {})  
 
         output = new_stdout.getvalue()
-        sys.stdout = old_stdout  # Restore stdout
+        sys.stdout = old_stdout 
 
         if request.doc_id in active_connections:
             for conn in active_connections[request.doc_id]:
@@ -114,5 +113,5 @@ async def execute_code(request: CodeExecutionRequest):
 
         return {"output": output}
     except Exception as e:
-        sys.stdout = old_stdout  # Ensure stdout is restored
+        sys.stdout = old_stdout 
         return {"output": str(e)}
