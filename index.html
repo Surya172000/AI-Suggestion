@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaborative Code Editor with AI</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.12/codemirror.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.12/codemirror.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.12/mode/python/python.min.js"></script>
+</head>
+<body>
+
+    <h2>Real-Time Collaborative Code Editor</h2>
+    <p id="status">Connecting...</p>
+
+    <textarea id="editor"></textarea>
+    <br>
+    <button onclick="runCode()">Run Code</button>
+
+    <h3>AI Suggestions:</h3>
+    <pre id="ai-suggestions">Waiting for AI...</pre>
+
+    <h3>Output:</h3>
+    <pre id="output"></pre>
+
+    <script>
+        const docId = prompt("Enter document ID:", "test");  
+        const socket = new WebSocket(`ws://127.0.0.1:8000/ws/${docId}`);
+        const status = document.getElementById("status");
+        let userIsTyping = false;
+
+        // Initialize CodeMirror Editor
+        const editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
+            lineNumbers: true,
+            mode: "python",
+            theme: "default"
+        });
+
+        socket.onopen = () => { status.innerText = "Connected"; };
+        socket.onclose = () => { status.innerText = "Disconnected"; };
+
+        socket.onmessage = (event) => {
+        let data = JSON.parse(event.data);
+        
+        if (data.type === "code") {
+            if (!userIsTyping) {
+                let currentCode = editor.getValue();
+                if (!currentCode.includes(data.content)) {
+                    editor.setValue(currentCode + "\n\n# AI Suggestion:\n" + data.content);
+                }
+            }
+        } else if (data.type === "output") {
+            document.getElementById("output").innerText = data.content;
+        }
+    };
+
+
+        // socket.onmessage = (event) => {
+        //     let data = JSON.parse(event.data);
+        //     if (data.type === "code") {
+        //         if (!userIsTyping) {
+        //             editor.setValue(data.content);
+        //         }
+        //     } else if (data.type === "suggestions") {
+        //         document.getElementById("ai-suggestions").innerText = data.content;
+        //     } else if (data.type === "output") {
+        //         document.getElementById("output").innerText = data.content;
+        //     }
+        // };
+
+        let typingTimer;
+        editor.on("change", (instance) => {
+            userIsTyping = true;
+            clearTimeout(typingTimer);
+
+            // Delay AI request until 1 second after the user stops typing
+            typingTimer = setTimeout(() => {
+                userIsTyping = false;
+                socket.send(JSON.stringify({ type: "code", content: instance.getValue() }));
+            }, 1000);  // 1-second delay
+        });
+        
+
+
+
+
+        // editor.on("change", (instance) => {
+        //     userIsTyping = true;
+        //     clearTimeout(window.typingTimer);
+        //     window.typingTimer = setTimeout(() => {
+        //         userIsTyping = false;
+        //     }, 200); 
+
+        //     socket.send(JSON.stringify({ type: "code", content: instance.getValue() }));
+        // });
+
+        function runCode() {
+            fetch("/execute", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ doc_id: docId, code: editor.getValue() })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("output").innerText = data.output;
+            });
+        }
+    </script>
+
+</body>
+</html>
